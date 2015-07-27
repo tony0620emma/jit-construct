@@ -1,67 +1,81 @@
-BIN = interpreter compiler-x64 compiler-arm \
-      jit0-x64 jit-x64 jit0-arm \
-      compiler-x86
+BIN = interpreter \
+      compiler-x86 compiler-x64 compiler-arm \
+      jit-x64 jit-arm
 
 CROSS_COMPILE = arm-linux-gnueabihf-
 QEMU_ARM = qemu-arm -L /usr/arm-linux-gnueabihf
+LUA = lua
 
 all: $(BIN)
 
 CFLAGS = -Wall -Werror -std=gnu99 -I.
 
-interpreter: interpreter.c util.c
+interpreter: interpreter.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-compiler-x86: compiler-x86.c util.c stack.c
+compiler-x86: compiler-x86.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-hello-x86: compiler-x86
-	./compiler-x86 progs/hello.b > hello-x86.s
-	$(AS) -o hello-x86.o hello-x86.s
-	$(CC) -o hello-x86 hello-x86.o
-	@echo 'x86-only: ' `./hello-x86`
-
-compiler-x64: compiler-x64.c util.c stack.c
+compiler-x64: compiler-x64.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-compiler-arm: compiler-arm.c util.c stack.c
+compiler-arm: compiler-arm.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-hello: compiler-x64 compiler-arm
+run-compiler: compiler-x86 compiler-x64 compiler-arm
+	./compiler-x86 progs/hello.b > hello.s
+	$(CC) -m32 -o hello-x86 hello.s
+	@echo 'x86: ' `./hello-x86`
+	@echo
 	./compiler-x64 progs/hello.b > hello.s
 	$(CC) -o hello-x64 hello.s
 	@echo 'x64: ' `./hello-x64`
+	@echo
 	./compiler-arm progs/hello.b > hello.s
 	$(CROSS_COMPILE)gcc -o hello-arm hello.s
 	@echo 'arm: ' `$(QEMU_ARM) hello-arm`
+	@echo
 
-jit0-x64: jit0-x64.c
+jit0-x64: tests/jit0-x64.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-jit-x64: dynasm-driver.c jit-x64.h util.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ -DJIT=\"jit-x64.h\" \
-		dynasm-driver.c util.c
+jit-x64: dynasm-driver.c jit-x64.h
+	$(CC) $(CFLAGS) -o $@ -DJIT=\"jit-x64.h\" \
+		dynasm-driver.c
 jit-x64.h: jit-x64.dasc
-	        lua dynasm/dynasm.lua -o $@ jit-x64.dasc
+	        $(LUA) dynasm/dynasm.lua -o $@ jit-x64.dasc
 run-jit-x64: jit-x64
 	./jit-x64 progs/hello.b && objdump -D -b binary \
 		-mi386 -Mx86-64 /tmp/jitcode
 
-jit0-arm: jit0-arm.c
+jit0-arm: tests/jit0-arm.c
 	$(CROSS_COMPILE)gcc $(CFLAGS) -o $@ $^
 
+jit-arm: dynasm-driver.c jit-arm.h
+	$(CROSS_COMPILE)gcc $(CFLAGS) -o $@ -DJIT=\"jit-arm.h\" \
+		dynasm-driver.c
+jit-arm.h: jit-arm.dasc
+	$(LUA) dynasm/dynasm.lua -o $@ jit-arm.dasc
+run-jit-arm: jit-arm
+	$(QEMU_ARM) jit-arm progs/hello.b && \
+	$(CROSS_COMPILE)objdump -D -b binary -marm /tmp/jitcode
 
-test: test_vector test_stack
-	./test_vector && ./test_stack
+bench-jit-x64: jit-x64
+	@echo
+	@echo Executing Brainf*ck benchmark suite. Be patient.
+	@echo
+	@tests/bench.py
 
-test_vector: tests/test_vector.c vector.c
-	$(CC) $(CFLAGS) -o $@ $^
-test_stack: tests/test_stack.c stack.c
+test: test_stack jit0-x64 jit0-arm
+	./test_stack
+	(./jit0-x64 42 ; echo $$?)
+	($(QEMU_ARM) jit0-arm 42 ; echo $$?)
+
+test_stack: tests/test_stack.c stack.h
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
 	$(RM) $(BIN) \
-	      hello-x64 hello-arm hello.s \
-	      test_vector test_stack \
-	      jit-x64.h \
-	      hello-x86.s hello-x86.o hello-x86
+	      hello-x86 hello-x64 hello-arm hello.s \
+	      test_stack jit0-x64 jit0-arm \
+	      jit-x64.h jit-arm.h
