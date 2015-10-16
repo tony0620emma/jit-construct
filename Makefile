@@ -64,14 +64,14 @@ bench-jit-x64: jit-x64
 	@echo
 	@echo Executing Brainf*ck benchmark suite. Be patient.
 	@echo
-	@tests/bench.py
+	@env PATH='.:${PATH}' BF_RUN='$<' tests/bench.py
 
 test: test_stack jit0-x64 jit0-arm
 	./test_stack
 	(./jit0-x64 42 ; echo $$?)
 	($(QEMU_ARM) jit0-arm 42 ; echo $$?)
 
-test_stack: tests/test_stack.c stack.h
+test_stack: tests/test_stack.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
