@@ -1,5 +1,7 @@
 #include <stdint.h>
+#include <stdio.h>
 #include "util.h"
+#include "bf-lex.h"
 
 |.arch x64
 |.actionlist actions
@@ -24,6 +26,11 @@
 
 int main(int argc, char *argv[])
 {
+	// For lexical analyzer
+	extern int yylex();
+	extern int yyleng;
+	extern FILE *yyin;
+
 	if (argc < 2) err("Usage: jit-x64-opt <inputfile>");
 	dasm_State *state;
 	initjit(&state, actions);
@@ -31,48 +38,34 @@ int main(int argc, char *argv[])
 	unsigned int maxpc = 0;
 	int pcstack[MAX_NESTING];
 	int *top = pcstack, *limit = pcstack + MAX_NESTING;
-	int value;
 	// Function prologue.
 	|  push PTR
 	|  mov  PTR, rdi      // rdi store 1st argument
-
-	for (char *p = read_file(argv[1]); *p; p++) {
-		switch (*p) {
-		case '>':
-		case '<':
-			value = 0;
-			do {
-				if (*p == '>')
-					value++;
-				else if (*p == '<')
-					value--;
-				p++;
-			} while (*p && (*p == '<' || *p == '>'));
-			p--;
-			|  add  PTR, value
+	
+	int type;
+	for (yyin = fopen(argv[1], "r"), type = yylex(); type != END_OF_FILE; type = yylex()) {
+		switch (type) {
+		case MOV_R:
+			|  add PTR, yyleng
 			break;
-		case '+':
-		case '-':
-			value = 0;
-			do {
-				if (*p == '+')
-					value++;
-				else if (*p == '-')
-					value--;
-				p++;
-			} while (*p && (*p == '-' || *p == '+'));
-			p--;
-			|  add byte  [PTR], value
+		case MOV_L:
+			|  add  PTR, -(yyleng) 
 			break;
-		case '.':
+		case ADD:
+			|  add byte [PTR], yyleng
+			break;
+		case SUB:
+			|  add byte [PTR], -(yyleng)
+			break;
+		case OUTPUT:
 			|  movzx edi, byte [PTR]
 			|  callp putchar
 			break;
-		case ',':
+		case INPUT:
 			|  callp getchar
 			|  mov   byte [PTR], al
 			break;
-		case '[':
+		case BRACE_L:
 			if (top == limit) err("Nesting too deep.");
 			// Each loop gets two pclabels: at the beginning and end.
 			// We store pclabel offsets in a stack to link the loop
@@ -84,7 +77,7 @@ int main(int argc, char *argv[])
 			|  je   =>(maxpc-2)
 			|=>(maxpc-1):
 			break;
-		case ']':
+		case BRACE_R:
 			if (top == pcstack) err("Unmatched ']'");
 			top--;
 			|  cmp  byte [PTR], 0
@@ -105,3 +98,4 @@ int main(int argc, char *argv[])
 	free_jitcode(fptr);
 	return 0;
 }
+

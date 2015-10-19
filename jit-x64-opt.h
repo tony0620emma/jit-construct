@@ -7,13 +7,15 @@
 
 #line 1 "jit-x64-opt.dasc"
 #include <stdint.h>
+#include <stdio.h>
 #include "util.h"
+#include "bf-lex.h"
 
 //|.arch x64
 #if DASM_VERSION != 10300
 #error "Version mismatch between DynASM and included encoding engine"
 #endif
-#line 5 "jit-x64-opt.dasc"
+#line 7 "jit-x64-opt.dasc"
 //|.actionlist actions
 static const unsigned char actions[55] = {
   83,72,137,252,251,255,72,129,195,239,255,128,3,235,255,15,182,59,72,184,237,
@@ -21,7 +23,7 @@ static const unsigned char actions[55] = {
   245,249,255,128,59,0,15,133,245,249,255,91,195,255
 };
 
-#line 6 "jit-x64-opt.dasc"
+#line 8 "jit-x64-opt.dasc"
 //|
 //|// Use rbx as our cell pointer.
 //|// Since rbx is a callee-save register, it will be preserved
@@ -43,65 +45,60 @@ static const unsigned char actions[55] = {
 
 int main(int argc, char *argv[])
 {
-	if (argc < 2) err("Usage: jit-x64 <inputfile>");
+	// For lexical analyzer
+	extern int yylex();
+	extern int yyleng;
+	extern FILE *yyin;
+
+	if (argc < 2) err("Usage: jit-x64-opt <inputfile>");
 	dasm_State *state;
 	initjit(&state, actions);
 
 	unsigned int maxpc = 0;
 	int pcstack[MAX_NESTING];
 	int *top = pcstack, *limit = pcstack + MAX_NESTING;
-	int value;
 	// Function prologue.
 	//|  push PTR
 	//|  mov  PTR, rdi      // rdi store 1st argument
 	dasm_put(Dst, 0);
-#line 38 "jit-x64-opt.dasc"
-
-	for (char *p = read_file(argv[1]); *p; p++) {
-		switch (*p) {
-		case '>':
-		case '<':
-			value = 0;
-			do {
-				if (*p == '>')
-					value++;
-				else if (*p == '<')
-					value--;
-				p++;
-			} while (*p && (*p == '<' || *p == '>'));
-			p--;
-			//|  add  PTR, value
-			dasm_put(Dst, 6, value);
+#line 44 "jit-x64-opt.dasc"
+	
+	int type;
+	for (yyin = fopen(argv[1], "r"), type = yylex(); type != END_OF_FILE; type = yylex()) {
+		switch (type) {
+		case MOV_R:
+			//|  add PTR, yyleng
+			dasm_put(Dst, 6, yyleng);
+#line 50 "jit-x64-opt.dasc"
+			break;
+		case MOV_L:
+			//|  add  PTR, -(yyleng) 
+			dasm_put(Dst, 6, -(yyleng));
 #line 53 "jit-x64-opt.dasc"
 			break;
-		case '+':
-		case '-':
-			value = 0;
-			do {
-				if (*p == '+')
-					value++;
-				else if (*p == '-')
-					value--;
-				p++;
-			} while (*p && (*p == '-' || *p == '+'));
-			p--;
-			//|  add byte  [PTR], value
-			dasm_put(Dst, 11, value);
-#line 66 "jit-x64-opt.dasc"
+		case ADD:
+			//|  add byte [PTR], yyleng
+			dasm_put(Dst, 11, yyleng);
+#line 56 "jit-x64-opt.dasc"
 			break;
-		case '.':
+		case SUB:
+			//|  add byte [PTR], -(yyleng)
+			dasm_put(Dst, 11, -(yyleng));
+#line 59 "jit-x64-opt.dasc"
+			break;
+		case OUTPUT:
 			//|  movzx edi, byte [PTR]
 			//|  callp putchar
 			dasm_put(Dst, 15, (unsigned int)((uintptr_t)putchar), (unsigned int)(((uintptr_t)putchar)>>32));
-#line 70 "jit-x64-opt.dasc"
+#line 63 "jit-x64-opt.dasc"
 			break;
-		case ',':
+		case INPUT:
 			//|  callp getchar
 			//|  mov   byte [PTR], al
 			dasm_put(Dst, 26, (unsigned int)((uintptr_t)getchar), (unsigned int)(((uintptr_t)getchar)>>32));
-#line 74 "jit-x64-opt.dasc"
+#line 67 "jit-x64-opt.dasc"
 			break;
-		case '[':
+		case BRACE_L:
 			if (top == limit) err("Nesting too deep.");
 			// Each loop gets two pclabels: at the beginning and end.
 			// We store pclabel offsets in a stack to link the loop
@@ -113,16 +110,16 @@ int main(int argc, char *argv[])
 			//|  je   =>(maxpc-2)
 			//|=>(maxpc-1):
 			dasm_put(Dst, 36, (maxpc-2), (maxpc-1));
-#line 86 "jit-x64-opt.dasc"
+#line 79 "jit-x64-opt.dasc"
 			break;
-		case ']':
+		case BRACE_R:
 			if (top == pcstack) err("Unmatched ']'");
 			top--;
 			//|  cmp  byte [PTR], 0
 			//|  jne  =>(*top-1)
 			//|=>(*top-2):
 			dasm_put(Dst, 44, (*top-1), (*top-2));
-#line 93 "jit-x64-opt.dasc"
+#line 86 "jit-x64-opt.dasc"
 			break;
 		}
 	}
@@ -131,7 +128,7 @@ int main(int argc, char *argv[])
 	//|  pop  PTR
 	//|  ret
 	dasm_put(Dst, 52);
-#line 100 "jit-x64-opt.dasc"
+#line 93 "jit-x64-opt.dasc"
 
 	void (*fptr)(char*) = jitcode(&state);
 	char *mem = calloc(30000, 1);
@@ -140,3 +137,4 @@ int main(int argc, char *argv[])
 	free_jitcode(fptr);
 	return 0;
 }
+
