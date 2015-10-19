@@ -76,6 +76,12 @@ bench-jit-x64: jit-x64
 	@echo
 	@env PATH='.:${PATH}' BF_RUN='$<' tests/bench.py
 
+bench-jit-x64-opt: jit-x64-opt
+	@echo
+	@echo Executing Brainf*ck benchmark suite. Be patient.
+	@echo
+	@env PATH='.:${PATH}' BF_RUN='$<' tests/bench.py
+
 test: test_stack jit0-x64 jit0-arm
 	./test_stack
 	(./jit0-x64 42 ; echo $$?)
