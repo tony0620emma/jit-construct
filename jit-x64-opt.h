@@ -15,10 +15,10 @@
 #endif
 #line 5 "jit-x64-opt.dasc"
 //|.actionlist actions
-static const unsigned char actions[55] = {
+static const unsigned char actions[59] = {
   83,72,137,252,251,255,72,129,195,239,255,128,3,235,255,15,182,59,72,184,237,
-  237,252,255,208,255,72,184,237,237,252,255,208,136,3,255,128,59,0,15,132,
-  245,249,255,128,59,0,15,133,245,249,255,91,195,255
+  237,252,255,208,255,72,184,237,237,252,255,208,136,3,255,198,3,0,255,128,
+  59,0,15,132,245,249,255,128,59,0,15,133,245,249,255,91,195,255
 };
 
 #line 6 "jit-x64-opt.dasc"
@@ -43,7 +43,7 @@ static const unsigned char actions[55] = {
 
 int main(int argc, char *argv[])
 {
-	if (argc < 2) err("Usage: jit-x64 <inputfile>");
+	if (argc < 2) err("Usage: jit-x64-opt <inputfile>");
 	dasm_State *state;
 	initjit(&state, actions);
 
@@ -102,18 +102,25 @@ int main(int argc, char *argv[])
 #line 74 "jit-x64-opt.dasc"
 			break;
 		case '[':
-			if (top == limit) err("Nesting too deep.");
-			// Each loop gets two pclabels: at the beginning and end.
-			// We store pclabel offsets in a stack to link the loop
-			// begin and end together.
-			maxpc += 2;
-			*top++ = maxpc;
-			dasm_growpc(&state, maxpc);
-			//|  cmp  byte [PTR], 0
-			//|  je   =>(maxpc-2)
-			//|=>(maxpc-1):
-			dasm_put(Dst, 36, (maxpc-2), (maxpc-1));
-#line 86 "jit-x64-opt.dasc"
+			if (*(p + 1) == '-' && *(p + 2) == ']') {
+				//|  mov byte [PTR], 0
+				dasm_put(Dst, 36);
+#line 78 "jit-x64-opt.dasc"
+				p += 2;
+			} else {
+				if (top == limit) err("Nesting too deep.");
+				// Each loop gets two pclabels: at the beginning and end.
+				// We store pclabel offsets in a stack to link the loop
+				// begin and end together.
+				maxpc += 2;
+				*top++ = maxpc;
+				dasm_growpc(&state, maxpc);
+				//|  cmp  byte [PTR], 0
+				//|  je   =>(maxpc-2)
+				//|=>(maxpc-1):
+				dasm_put(Dst, 40, (maxpc-2), (maxpc-1));
+#line 90 "jit-x64-opt.dasc"
+			}
 			break;
 		case ']':
 			if (top == pcstack) err("Unmatched ']'");
@@ -121,8 +128,8 @@ int main(int argc, char *argv[])
 			//|  cmp  byte [PTR], 0
 			//|  jne  =>(*top-1)
 			//|=>(*top-2):
-			dasm_put(Dst, 44, (*top-1), (*top-2));
-#line 93 "jit-x64-opt.dasc"
+			dasm_put(Dst, 48, (*top-1), (*top-2));
+#line 98 "jit-x64-opt.dasc"
 			break;
 		}
 	}
@@ -130,8 +137,8 @@ int main(int argc, char *argv[])
 	// Function epilogue.
 	//|  pop  PTR
 	//|  ret
-	dasm_put(Dst, 52);
-#line 100 "jit-x64-opt.dasc"
+	dasm_put(Dst, 56);
+#line 105 "jit-x64-opt.dasc"
 
 	void (*fptr)(char*) = jitcode(&state);
 	char *mem = calloc(30000, 1);
