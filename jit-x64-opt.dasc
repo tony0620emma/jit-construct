@@ -24,7 +24,7 @@
 
 int main(int argc, char *argv[])
 {
-	if (argc < 2) err("Usage: jit-x64 <inputfile>");
+	if (argc < 2) err("Usage: jit-x64-opt <inputfile>");
 	dasm_State *state;
 	initjit(&state, actions);
 
