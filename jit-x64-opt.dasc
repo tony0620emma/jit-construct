@@ -45,6 +45,9 @@ int main(int argc, char *argv[])
 	int type;
 	for (yyin = fopen(argv[1], "r"), type = yylex(); type != END_OF_FILE; type = yylex()) {
 		switch (type) {
+		case ZERO:
+			|  mov byte [PTR], 0
+			break;
 		case MOV_R:
 			|  add PTR, yyleng
 			break;

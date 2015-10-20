@@ -17,10 +17,10 @@
 #endif
 #line 7 "jit-x64-opt.dasc"
 //|.actionlist actions
-static const unsigned char actions[55] = {
-  83,72,137,252,251,255,72,129,195,239,255,128,3,235,255,15,182,59,72,184,237,
-  237,252,255,208,255,72,184,237,237,252,255,208,136,3,255,128,59,0,15,132,
-  245,249,255,128,59,0,15,133,245,249,255,91,195,255
+static const unsigned char actions[59] = {
+  83,72,137,252,251,255,198,3,0,255,72,129,195,239,255,128,3,235,255,15,182,
+  59,72,184,237,237,252,255,208,255,72,184,237,237,252,255,208,136,3,255,128,
+  59,0,15,132,245,249,255,128,59,0,15,133,245,249,255,91,195,255
 };
 
 #line 8 "jit-x64-opt.dasc"
@@ -66,37 +66,42 @@ int main(int argc, char *argv[])
 	int type;
 	for (yyin = fopen(argv[1], "r"), type = yylex(); type != END_OF_FILE; type = yylex()) {
 		switch (type) {
+		case ZERO:
+			//|  mov byte [PTR], 0
+			dasm_put(Dst, 6);
+#line 50 "jit-x64-opt.dasc"
+			break;
 		case MOV_R:
 			//|  add PTR, yyleng
-			dasm_put(Dst, 6, yyleng);
-#line 50 "jit-x64-opt.dasc"
+			dasm_put(Dst, 10, yyleng);
+#line 53 "jit-x64-opt.dasc"
 			break;
 		case MOV_L:
 			//|  add  PTR, -(yyleng) 
-			dasm_put(Dst, 6, -(yyleng));
-#line 53 "jit-x64-opt.dasc"
+			dasm_put(Dst, 10, -(yyleng));
+#line 56 "jit-x64-opt.dasc"
 			break;
 		case ADD:
 			//|  add byte [PTR], yyleng
-			dasm_put(Dst, 11, yyleng);
-#line 56 "jit-x64-opt.dasc"
+			dasm_put(Dst, 15, yyleng);
+#line 59 "jit-x64-opt.dasc"
 			break;
 		case SUB:
 			//|  add byte [PTR], -(yyleng)
-			dasm_put(Dst, 11, -(yyleng));
-#line 59 "jit-x64-opt.dasc"
+			dasm_put(Dst, 15, -(yyleng));
+#line 62 "jit-x64-opt.dasc"
 			break;
 		case OUTPUT:
 			//|  movzx edi, byte [PTR]
 			//|  callp putchar
-			dasm_put(Dst, 15, (unsigned int)((uintptr_t)putchar), (unsigned int)(((uintptr_t)putchar)>>32));
-#line 63 "jit-x64-opt.dasc"
+			dasm_put(Dst, 19, (unsigned int)((uintptr_t)putchar), (unsigned int)(((uintptr_t)putchar)>>32));
+#line 66 "jit-x64-opt.dasc"
 			break;
 		case INPUT:
 			//|  callp getchar
 			//|  mov   byte [PTR], al
-			dasm_put(Dst, 26, (unsigned int)((uintptr_t)getchar), (unsigned int)(((uintptr_t)getchar)>>32));
-#line 67 "jit-x64-opt.dasc"
+			dasm_put(Dst, 30, (unsigned int)((uintptr_t)getchar), (unsigned int)(((uintptr_t)getchar)>>32));
+#line 70 "jit-x64-opt.dasc"
 			break;
 		case BRACE_L:
 			if (top == limit) err("Nesting too deep.");
@@ -109,8 +114,8 @@ int main(int argc, char *argv[])
 			//|  cmp  byte [PTR], 0
 			//|  je   =>(maxpc-2)
 			//|=>(maxpc-1):
-			dasm_put(Dst, 36, (maxpc-2), (maxpc-1));
-#line 79 "jit-x64-opt.dasc"
+			dasm_put(Dst, 40, (maxpc-2), (maxpc-1));
+#line 82 "jit-x64-opt.dasc"
 			break;
 		case BRACE_R:
 			if (top == pcstack) err("Unmatched ']'");
@@ -118,8 +123,8 @@ int main(int argc, char *argv[])
 			//|  cmp  byte [PTR], 0
 			//|  jne  =>(*top-1)
 			//|=>(*top-2):
-			dasm_put(Dst, 44, (*top-1), (*top-2));
-#line 86 "jit-x64-opt.dasc"
+			dasm_put(Dst, 48, (*top-1), (*top-2));
+#line 89 "jit-x64-opt.dasc"
 			break;
 		}
 	}
@@ -127,8 +132,8 @@ int main(int argc, char *argv[])
 	// Function epilogue.
 	//|  pop  PTR
 	//|  ret
-	dasm_put(Dst, 52);
-#line 93 "jit-x64-opt.dasc"
+	dasm_put(Dst, 56);
+#line 96 "jit-x64-opt.dasc"
 
 	void (*fptr)(char*) = jitcode(&state);
 	char *mem = calloc(30000, 1);

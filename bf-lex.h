@@ -6,4 +6,5 @@
 #define OUTPUT		6
 #define BRACE_L		7
 #define BRACE_R		8
-#define END_OF_FILE 9
+#define ZERO		9
+#define END_OF_FILE	10

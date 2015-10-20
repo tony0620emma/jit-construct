@@ -4,6 +4,7 @@
 
 %%
 
+"[-]"			{return ZERO;}
 "+"+			{return ADD;}
 "-"+			{return SUB;}
 ">"+			{return MOV_R;}
